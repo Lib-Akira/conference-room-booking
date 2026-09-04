@@ -918,6 +918,56 @@
             .replace(/'/g, "&#39;");
     }
 
+    // Persist/restore form + dashboard UI state in localStorage (non-sensitive fields only)
+    function saveFormState() {
+        try {
+            const state = {
+                building: document.getElementById('building') ? document.getElementById('building').value : '',
+                room: document.getElementById('room') ? document.getElementById('room').value : '',
+                bookingDate: document.getElementById('bookingDate') ? document.getElementById('bookingDate').value : '',
+                startTime: document.getElementById('startTime') ? document.getElementById('startTime').value : '',
+                endTime: document.getElementById('endTime') ? document.getElementById('endTime').value : '',
+                userStatus: document.getElementById('userStatus') ? document.getElementById('userStatus').value : '',
+                departmentSelect: document.getElementById('departmentSelect') ? document.getElementById('departmentSelect').value : '',
+                departmentInput: document.getElementById('departmentInput') ? document.getElementById('departmentInput').value : '',
+                attendees: document.getElementById('attendees') ? document.getElementById('attendees').value : '',
+                purpose: document.getElementById('purpose') ? document.getElementById('purpose').value : ''
+            };
+            localStorage.setItem('slc_formState', JSON.stringify(state));
+        } catch (e) {
+            console.warn('Failed to save form state', e);
+        }
+    }
+
+    function loadFormState() {
+        try {
+            const raw = localStorage.getItem('slc_formState');
+            if (!raw) return;
+            const state = JSON.parse(raw);
+            if (state.building) document.getElementById('building').value = state.building;
+            if (state.room) document.getElementById('room').value = state.room;
+            if (state.bookingDate) {
+                const bdEl = document.getElementById('bookingDate');
+                if (bdEl) bdEl.value = state.bookingDate;
+                if (fpBookingInstance) fpBookingInstance.setDate(state.bookingDate);
+            }
+            if (state.startTime) document.getElementById('startTime').value = state.startTime;
+            if (state.endTime) document.getElementById('endTime').value = state.endTime;
+            if (state.userStatus) document.getElementById('userStatus').value = state.userStatus;
+            if (state.departmentSelect) document.getElementById('departmentSelect').value = state.departmentSelect;
+            if (state.departmentInput) document.getElementById('departmentInput').value = state.departmentInput;
+            if (state.attendees) document.getElementById('attendees').value = state.attendees;
+            if (state.purpose) document.getElementById('purpose').value = state.purpose;
+
+            // Apply dependent UI updates
+            if (state.building) updateRoomsAndTimes();
+            if (state.userStatus) updateDepartmentOptions();
+            checkFormCompletion();
+        } catch (e) {
+            console.warn('Failed to load form state', e);
+        }
+    }
+
     function timeToMinutes(timeStr) {
         if (!timeStr) return 0;
         var parts = timeStr.split(':');
@@ -941,7 +991,7 @@
 
         const filteredData = allBookings.filter(b => {
             if (!b.date) return false;
-            const bDateStr = b.date.split('T')[0]; 
+            const bDateStr = (b.date || '').split('T')[0]; 
             const matchDate = bDateStr === selectedDate;
             const matchBuilding = selectedBuilding === "" || b.building === selectedBuilding;
             const matchRoom = selectedRoom === "" || b.room === selectedRoom;
@@ -1019,11 +1069,15 @@
     // ✅ Event Delegation สำหรับปุ่มลบ: ผูก listener แค่ครั้งเดียวที่ตัว tbody (แทนการฝัง onclick
     // ในทุกแถวที่ render) ค่าที่อ่านมาจาก dataset จะถูก HTML-decode อัตโนมัติโดย browser
     // ปลอดภัยกว่าการต่อ string เข้า onclick="..." attribute โดยตรง
-    document.getElementById("bookingTableBody").addEventListener("click", function (e) {
-        const btn = e.target.closest(".delete-btn");
-        if (!btn) return;
-        deleteBooking(btn.dataset.requester, btn.dataset.date, btn.dataset.startTime, btn.dataset.room);
-    });
+    const bookingTbody = document.getElementById("bookingTableBody");
+    if (bookingTbody && !bookingTbody.__deleteListenerAdded) {
+        bookingTbody.addEventListener("click", function (e) {
+            const btn = e.target.closest(".delete-btn");
+            if (!btn) return;
+            deleteBooking(btn.dataset.requester, btn.dataset.date, btn.dataset.startTime, btn.dataset.room);
+        });
+        bookingTbody.__deleteListenerAdded = true;
+    }
 
     // ใช้ตอน filter เปลี่ยน / หลังจองสำเร็จ / หลังลบ — ยิง fetch แค่ข้อมูลจองอย่างเดียว (เบา เร็ว)
     // ไม่ต้องดึง maintenance/hours ซ้ำทุกครั้ง เพราะข้อมูลพวกนั้นไม่ได้เปลี่ยนบ่อยขนาดนั้น
@@ -1156,6 +1210,13 @@
             return;
         }
 
+        // ตรวจสอบระยะเวลาการจองไม่เกิน 2 ชั่วโมงก่อนทำ network
+        const durationMins = timeToMinutes(endTimeValue) - timeToMinutes(startTimeValue);
+        if (durationMins > 120) {
+            BrandSwal.fire({ title: 'เงื่อนไขการใช้ห้อง', text: '⚠️ ขอใช้งานห้องประชุมได้ครั้งละไม่เกิน 2 ชั่วโมงต่อคน', icon: 'info', confirmButtonColor: '#1e3c72' });
+            return;
+        }
+
         // ✅ รีเฟรชข้อมูลการจองก่อนตรวจสอบ (ป้องกัน race condition)
         refreshBookingsData().then(() => {
             if (hasTimeConflict(buildingValue, roomValue, bookingDateValue, startTimeValue, endTimeValue)) {
@@ -1190,9 +1251,10 @@
                 department: deptValue,
                 attendees: document.getElementById("attendees").value
             };
+            // Use application/json for POST so Apps Script receives parsed JSON body correctly (was text/plain causing Apps Script to reject body)
             fetch(SCRIPT_URL, {
                 method: "POST",
-                headers: { "Content-Type": "text/plain;charset=utf-8" },
+                headers: { "Content-Type": "application/json;charset=utf-8" },
                 body: JSON.stringify(payload)
             })
             .then(res => res.json())
@@ -1280,17 +1342,23 @@
     window.onload = function() {
         // เช็คตอนเปิดหน้าเว็บครั้งแรก ก่อนทุกคำสั่ง
         checkFormCompletion();
+            // โหลดสถานะที่เก็บใน localStorage (form + dashboard)
+            loadFormState();
+            const savedB = localStorage.getItem('slc_dashboardBuilding');
+            if (savedB) dashboardBuilding = savedB;
+            const savedP = localStorage.getItem('slc_dashboardPeriod');
+            if (savedP) dashboardPeriod = savedP;
         
-        // เพิ่ม event listeners สำหรับทุก required fields
-        const requiredFields = [
-            "building", "room", "bookingDate", "startTime", "endTime", 
-            "requester", "userStatus", "attendees"
-        ];
+            // เพิ่ม event listeners สำหรับทุก required fields
+            const requiredFields = [
+                "building", "room", "bookingDate", "startTime", "endTime", 
+                "requester", "userStatus", "attendees"
+            ];
         requiredFields.forEach(fieldId => {
             const field = document.getElementById(fieldId);
             if (field) {
-                field.addEventListener("change", checkFormCompletion);
-                field.addEventListener("input", checkFormCompletion);
+                field.addEventListener("change", () => { checkFormCompletion(); saveFormState(); });
+                field.addEventListener("input", () => { checkFormCompletion(); saveFormState(); });
             }
         });
         
@@ -1413,7 +1481,7 @@
         if (!dateStr) return false;
         return maintenanceSlots.some(m =>
             dateStr >= m.startDate && dateStr <= m.endDate &&
-            timeToMinutes(m.start) <= 1 && timeToMinutes(m.end) >= (23 * 60 + 58)
+            timeToMinutes(m.start) <= 1 && timeToMinutes(m.end) >= (24 * 60)
         );
     }
 
@@ -1466,7 +1534,7 @@
             const scopeLabel = c.building
                 ? (c.room ? `${escapeHtml(c.building)} • ${escapeHtml(c.room)}` : `อาคาร ${escapeHtml(c.building)}`)
                 : 'ทุกอาคาร';
-            const isFullDay = timeToMinutes(c.start) <= 1 && timeToMinutes(c.end) >= (23 * 60 + 58);
+            const isFullDay = timeToMinutes(c.start) <= 1 && timeToMinutes(c.end) >= (24 * 60);
             const timeLabel = isFullDay ? 'ปิดทั้งวัน' : `${escapeHtml(c.start)} - ${escapeHtml(c.end)}`;
             // ช่วงวันเดียว -> โชว์วันเดียว, หลายวัน -> โชว์เป็นช่วง "เริ่ม - สิ้นสุด" แถวเดียว ไม่ต้องแตกเป็นรายวัน
             const dateLabel = c.startDate === c.endDate
@@ -1524,9 +1592,10 @@
                 }
                 // สำคัญ: ใช้ POST และใส่ password ไว้ใน body แทนการแปะบน URL
                 // เพราะ URL แบบ GET จะไปโผล่ใน browser history / server log ทำให้รหัสผ่านรั่วได้
+                // Use application/json for POST so Apps Script receives parsed JSON body correctly (was text/plain causing Apps Script to reject body)
                 return fetch(SCRIPT_URL, {
                     method: 'POST',
-                    headers: { "Content-Type": "text/plain;charset=utf-8" },
+                    headers: { "Content-Type": "application/json;charset=utf-8" },
                     body: JSON.stringify({
                         action: 'delete',
                         password: password,
@@ -1620,6 +1689,8 @@
     let dashboardPeriod = "all";
     let chartUserStatusInstance = null;
     let chartFacultyInstance = null;
+    let dashboardRunning = false;
+    let dashboardLoopStarted = false;
 
     // ข้อมูลปิดซ่อมบำรุง ดึงจาก Google Sheet แท็บ "Maintenance" ผ่าน SCRIPT_URL?type=maintenance
     // (โหลดจริงใน fetchAllData() ตอนเปิดหน้าเว็บ — ค่าตั้งต้นเป็น array ว่างระหว่างรอโหลด)
@@ -1662,6 +1733,7 @@
 
     function setDashboardBuilding(b) {
         dashboardBuilding = b;
+        localStorage.setItem('slc_dashboardBuilding', b);
         document.querySelectorAll('.dash-toggle-btn').forEach(btn => {
             btn.classList.toggle('active', btn.dataset.building === b);
         });
@@ -1670,6 +1742,7 @@
 
     function setDashboardPeriod(p) {
         dashboardPeriod = p;
+        localStorage.setItem('slc_dashboardPeriod', p);
         document.querySelectorAll('.dash-period-btn').forEach(btn => {
             btn.classList.toggle('active', btn.dataset.period === p);
         });
@@ -1683,10 +1756,9 @@
         document.querySelectorAll('.dash-period-btn').forEach(btn => {
             btn.classList.toggle('active', btn.dataset.period === dashboardPeriod);
         });
-        refreshDashboardData();
-        if (!dashboardInterval) {
-            dashboardInterval = setInterval(refreshDashboardData, 30000); // อัปเดตอัตโนมัติทุก 30 วินาที
-        }
+        // เริ่ม loop แบบรอให้คำขอก่อนหน้าจบก่อนค่อยรอ 30 วินาที แล้วค่อยเรียกอีกครั้ง
+        dashboardRunning = true;
+        if (!dashboardLoopStarted) runDashboardLoop();
         // เส้นเวลาปัจจุบันขยับเองทุก 30 วินาที โดยไม่ต้องรอโหลดข้อมูลใหม่ทั้งหมด
         if (!timeIndicatorInterval) {
             timeIndicatorInterval = setInterval(updateCurrentTimeIndicator, 30000);
@@ -1694,11 +1766,22 @@
         window.addEventListener('resize', updateCurrentTimeIndicator);
     }
 
-    function stopDashboard() {
-        if (dashboardInterval) {
-            clearInterval(dashboardInterval);
-            dashboardInterval = null;
+    async function runDashboardLoop() {
+        if (dashboardLoopStarted) return;
+        dashboardLoopStarted = true;
+        while (dashboardRunning) {
+            try {
+                await refreshDashboardData();
+            } catch (e) {
+                console.error('Dashboard loop fetch failed', e);
+            }
+            await new Promise(r => setTimeout(r, 30000));
         }
+        dashboardLoopStarted = false;
+    }
+
+    function stopDashboard() {
+        dashboardRunning = false;
         if (timeIndicatorInterval) {
             clearInterval(timeIndicatorInterval);
             timeIndicatorInterval = null;
@@ -1717,7 +1800,7 @@
 
         // ✅ แก้ปัญหาเดียวกับตอนเปิดเว็บ: เดิมยิง 2 คำขอ (จอง + ปิดซ่อมบำรุง) พร้อมกันทุก 30 วิ
         // ที่ Dashboard เปิดอยู่ รวมเป็นคำขอเดียวลดโอกาสชนคิว/ timeout
-        fetch(`${SCRIPT_URL}?type=all`)
+        return fetch(`${SCRIPT_URL}?type=all`)
             .then(res => res.json())
             .then(data => {
                 allBookings = Array.isArray(data.bookings) ? data.bookings : [];
@@ -1769,7 +1852,7 @@
 
         allBookings.forEach(b => {
             if (!b.date) return;
-            const dStr = b.date.split('T')[0];
+            const dStr = (b.date || '').split('T')[0];
             const d = new Date(dStr + 'T00:00:00');
             if (isNaN(d)) return;
             if (dStr === todayStr) countToday++;
@@ -1830,18 +1913,23 @@
         const thead = table.querySelector('thead tr');
         const tbody = table.querySelector('tbody');
 
-        thead.innerHTML = `<th class="text-xs text-slate-400 sticky left-0 bg-white z-10 pr-3 text-left font-bold">ห้อง</th>`;
+        // Performance: build header HTML in-memory then assign once to avoid repeated DOM writes (innerHTML += in loops causes O(n^2) behavior)
+        const theadParts = ['<th class="text-xs text-slate-400 sticky left-0 bg-white z-10 pr-3 text-left font-bold">ห้อง</th>'];
         slots.forEach(s => {
             const [hh, mm] = s.split(':');
             const label = mm === '00' ? hh + ':00' : '';
-            thead.innerHTML += `<th class="text-[10px] font-semibold text-slate-400 text-center align-bottom pb-1" data-start="${timeToMinutes(s)}" style="min-width:26px;">${label}</th>`;
+            theadParts.push(`<th class="text-[10px] font-semibold text-slate-400 text-center align-bottom pb-1" data-start="${timeToMinutes(s)}" style="min-width:26px;">${label}</th>`);
         });
+        thead.innerHTML = theadParts.join('');
 
         tbody.innerHTML = '';
         if (roomList.length === 0) {
             tbody.innerHTML = `<tr><td class="text-center text-slate-400 py-6 text-sm">ไม่มีข้อมูลห้อง</td></tr>`;
             return;
         }
+
+        // Performance: accumulate row HTML into array and set tbody.innerHTML once to avoid repetitive DOM writes
+        const rows = [];
 
         roomList.forEach(roomRaw => {
             const room = getRoomValue(roomRaw);
@@ -1867,12 +1955,12 @@
                 });
 
                 let cellClass = 'bg-emerald-400';
-                let title = `${room} • ${s} • ว่าง`;
+                let title = `${escapeHtml(room)} • ${s} • ว่าง`;
                 let style = '';
                 if (inMaint) {
                     cellClass = '';
                     style = 'style="background-image: repeating-linear-gradient(45deg,#cbd5e1,#cbd5e1 3px,#f1f5f9 3px,#f1f5f9 6px);"';
-                    title = `${room} • ${s} • ปิดซ่อมบำรุง`;
+                    title = `${escapeHtml(room)} • ${s} • ปิดซ่อมบำรุง`;
                 } else if (booking) {
                     cellClass = 'bg-rose-400';
                     title = `${room} • ${s} • ${escapeHtml(booking.requester || 'มีการจอง')}`;
@@ -1881,8 +1969,10 @@
                 row += `<td class="rounded-sm h-6 ${cellClass}" ${style} title="${title}"></td>`;
             });
             row += '</tr>';
-            tbody.innerHTML += row;
+            rows.push(row);
         });
+
+        tbody.innerHTML = rows.join('');
 
         updateCurrentTimeIndicator();
     }
@@ -1961,7 +2051,7 @@
         const statusData = statusLabels.map(k => statusCounts[k]);
 
         const ctx1 = document.getElementById('chartUserStatus').getContext('2d');
-        if (chartUserStatusInstance) chartUserStatusInstance.destroy();
+        try { if (chartUserStatusInstance) chartUserStatusInstance.destroy(); } catch (e) { console.warn('Failed to destroy chartUserStatusInstance', e); }
         if (statusData.length === 0) {
             document.getElementById('legendUserStatus').innerHTML = '<span class="text-slate-400">ยังไม่มีข้อมูลการจอง</span>';
         } else {
@@ -2002,7 +2092,7 @@
         });
 
         const ctx2 = document.getElementById('chartFaculty').getContext('2d');
-        if (chartFacultyInstance) chartFacultyInstance.destroy();
+        try { if (chartFacultyInstance) chartFacultyInstance.destroy(); } catch (e) { console.warn('Failed to destroy chartFacultyInstance', e); }
         if (facultyLabels.length === 0) {
             document.getElementById('legendFaculty').innerHTML = '<span class="text-slate-400">ยังไม่มีข้อมูลการจองของนักศึกษา</span>';
         } else {

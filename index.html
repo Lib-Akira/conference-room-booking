@@ -1309,7 +1309,9 @@
             })
             .finally(() => {
                 document.getElementById("submitBtn").innerHTML = "<i class='fa-solid fa-paper-plane me-2'></i>ส่งข้อมูลการจอง";
-                document.getElementById("submitBtn").disabled = false;
+                // อัปเดตสถานะปุ่มตามสถานะฟอร์มแทนการปลดล็อกตายตัว
+                try { checkFormCompletion(); } catch (e) { console.warn('checkFormCompletion failed', e); }
+                try { saveFormState(); } catch (e) { /* ignore */ }
             });
         }).catch(err => {
             console.error('Failed to refresh bookings before submit:', err);
@@ -1320,7 +1322,8 @@
                 confirmButtonText: 'รับทราบ',
                 confirmButtonColor: '#e11d48'
             });
-            document.getElementById("submitBtn").disabled = false;
+            // อัปเดตปุ่มตามสถานะฟอร์ม เพื่อไม่ให้ปลดล็อกโดยไม่มีเงื่อนไข
+            try { checkFormCompletion(); } catch (e) { console.warn('checkFormCompletion failed', e); }
         });
     });
 

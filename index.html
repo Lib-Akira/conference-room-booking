@@ -1261,7 +1261,39 @@
         });
     });
 
+    // ✅ เช็คการกรอกฟอร์มแต่ละครั้ง และอัปเดตสีปุ่ม (ย้ายออกจาก fetchAllData ให้เป็น global)
+    function checkFormCompletion() {
+        const building = document.getElementById("building").value;
+        const room = document.getElementById("room").value;
+        const bookingDate = document.getElementById("bookingDate").value;
+        const startTime = document.getElementById("startTime").value;
+        const endTime = document.getElementById("endTime").value;
+        const requester = document.getElementById("requester").value.trim();
+        const userStatus = document.getElementById("userStatus").value;
+        const attendees = document.getElementById("attendees").value;
+        
+        const isComplete = building && room && bookingDate && startTime && endTime && requester && userStatus && attendees;
+        const submitBtn = document.getElementById("submitBtn");
+        submitBtn.disabled = !isComplete;
+    }
+
     window.onload = function() {
+        // เช็คตอนเปิดหน้าเว็บครั้งแรก ก่อนทุกคำสั่ง
+        checkFormCompletion();
+        
+        // เพิ่ม event listeners สำหรับทุก required fields
+        const requiredFields = [
+            "building", "room", "bookingDate", "startTime", "endTime", 
+            "requester", "userStatus", "attendees"
+        ];
+        requiredFields.forEach(fieldId => {
+            const field = document.getElementById(fieldId);
+            if (field) {
+                field.addEventListener("change", checkFormCompletion);
+                field.addEventListener("input", checkFormCompletion);
+            }
+        });
+        
         fpBookingInstance = flatpickr("#bookingDate", {
             dateFormat: "Y-m-d", 
             altInput: true,      
@@ -1348,38 +1380,6 @@
                 maintenanceSlots = maintenanceSlots || [];
                 operatingHoursOverrides = operatingHoursOverrides || [];
             });
-        
-        // ✅ เช็คการกรอกฟอร์มแต่ละครั้ง และอัปเดตสีปุ่ม
-        function checkFormCompletion() {
-            const building = document.getElementById("building").value;
-            const room = document.getElementById("room").value;
-            const bookingDate = document.getElementById("bookingDate").value;
-            const startTime = document.getElementById("startTime").value;
-            const endTime = document.getElementById("endTime").value;
-            const requester = document.getElementById("requester").value.trim();
-            const userStatus = document.getElementById("userStatus").value;
-            const attendees = document.getElementById("attendees").value;
-            
-            const isComplete = building && room && bookingDate && startTime && endTime && requester && userStatus && attendees;
-            const submitBtn = document.getElementById("submitBtn");
-            submitBtn.disabled = !isComplete;
-        }
-        
-        // เพิ่ม event listeners สำหรับทุก required fields
-        const requiredFields = [
-            "building", "room", "bookingDate", "startTime", "endTime", 
-            "requester", "userStatus", "attendees"
-        ];
-        requiredFields.forEach(fieldId => {
-            const field = document.getElementById(fieldId);
-            if (field) {
-                field.addEventListener("change", checkFormCompletion);
-                field.addEventListener("input", checkFormCompletion);
-            }
-        });
-        
-        // เช็คตอนเปิดหน้าเว็บครั้งแรก
-        checkFormCompletion();
     }
 
     // ✅ เพิ่มใหม่: แจ้งเตือนล่วงหน้าตอนเปิดเว็บ ว่าใน 14 วันข้างหน้ามีวัน/ช่วงไหนปิดบ้าง

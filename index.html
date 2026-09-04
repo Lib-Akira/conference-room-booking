@@ -191,7 +191,7 @@
     <!-- แถบเมนูด้านซ้าย: กดปุ่มลูกศรเพื่อ ย่อ/ขยาย เอง (ไม่ใช่ hover)
          ตอนย่อ (มี class "collapsed") จะเหลือแค่ไอคอน เอาเมาส์ไปชี้จะมี tooltip โผล่บอกชื่อเมนู -->
     <aside id="sidebar" class="hidden lg:flex flex-col relative z-40 bg-white shadow-lg shrink-0 w-52 p-4 transition-all duration-300 ease-in-out collapsed sticky top-0 h-screen">
-        <button id="sidebarToggleBtn" onclick="toggleSidebar()"
+        <button id="sidebarToggleBtn" onclick="toggleSidebar()" aria-label="ย่อ/ขยายแถบเมนู"
             class="absolute -right-3 top-8 w-6 h-6 bg-white border border-slate-200 rounded-full shadow flex items-center justify-center text-slate-500 hover:text-[#5388D8] hover:border-[#5388D8] transition z-10">
             <i id="sidebarToggleIcon" class="fa-solid fa-chevron-left text-[10px] transition-transform duration-300"></i>
         </button>
@@ -207,14 +207,14 @@
 
         <nav class="space-y-2">
             <div class="relative group">
-                <button onclick="switchView('booking')" id="btn-booking" class="active-menu w-full flex items-center gap-3 px-3 py-3 rounded-xl font-medium transition whitespace-nowrap overflow-hidden">
+                <button onclick="switchView('booking')" id="btn-booking" aria-label="ไปที่หน้าจองห้องประชุม" class="active-menu w-full flex items-center gap-3 px-3 py-3 rounded-xl font-medium transition whitespace-nowrap overflow-hidden">
                     <i class="fa-solid fa-calendar-plus w-5 text-center shrink-0"></i>
                     <span class="sidebar-label">จองห้องประชุม</span>
                 </button>
                 <span class="sidebar-tooltip">จองห้องประชุม</span>
             </div>
             <div class="relative group">
-                <button onclick="switchView('dashboard')" id="btn-dashboard" class="w-full flex items-center gap-3 px-3 py-3 rounded-xl font-medium text-slate-600 hover:bg-slate-100 transition whitespace-nowrap overflow-hidden">
+                <button onclick="switchView('dashboard')" id="btn-dashboard" aria-label="ไปที่หน้า Dashboard" class="w-full flex items-center gap-3 px-3 py-3 rounded-xl font-medium text-slate-600 hover:bg-slate-100 transition whitespace-nowrap overflow-hidden">
                     <i class="fa-solid fa-chart-pie w-5 text-center shrink-0"></i>
                     <span class="sidebar-label">Dashboard</span>
                 </button>
@@ -658,17 +658,17 @@
         </div>
 <div class="fixed bottom-8 right-8 z-[100] flex items-center justify-center">
     
-    <a id="fab-fb" href="https://www.facebook.com/SLCLib/" target="_blank"
+    <a id="fab-fb" href="https://www.facebook.com/SLCLib/" target="_blank" aria-label="ติดต่อผ่าน Facebook"
        class="absolute bottom-0 right-0 w-12 h-12 bg-[#5388D8] rounded-full shadow-lg flex items-center justify-center text-white transition-all duration-300 transform opacity-0 scale-0">
         <i class="fa-brands fa-facebook-f text-2xl"></i>
     </a>
 
-    <a id="fab-line" href="https://line.me/ti/g2/rJDHa3r305wqq488K1rnMf-5g6U2tdpdYNF4TA?utm_source=invitation&utm_medium=link_copy&utm_campaign=default" target="_blank"
+    <a id="fab-line" href="https://line.me/ti/g2/rJDHa3r305wqq488K1rnMf-5g6U2tdpdYNF4TA?utm_source=invitation&utm_medium=link_copy&utm_campaign=default" target="_blank" aria-label="ติดต่อผ่าน LINE"
        class="absolute bottom-0 right-0 w-12 h-12 bg-green-500 rounded-full shadow-lg flex items-center justify-center text-white transition-all duration-300 transform opacity-0 scale-0">
         <i class="fa-brands fa-line text-2xl"></i>
     </a>
 
-    <button id="fab-main" class="w-12 h-12 bg-[#0D2535] rounded-full shadow-2xl flex items-center justify-center text-white hover:scale-105 transition-transform z-10">
+    <button id="fab-main" aria-label="เปิด/ปิดเมนูช่องทางติดต่อ" class="w-12 h-12 bg-[#0D2535] rounded-full shadow-2xl flex items-center justify-center text-white hover:scale-105 transition-transform z-10">
         <i id="fab-icon" class="fa-solid fa-headset text-3xl"></i>
     </button>
 </div>
@@ -859,9 +859,51 @@
                 BrandSwal.fire({ title: 'เงื่อนไขการใช้ห้อง', text: '⚠️ ขอใช้งานห้องประชุมได้ครั้งละไม่เกิน 2 ชั่วโมงต่อคน', icon: 'info', confirmButtonColor: '#1e3c72' });
                 submitBtn.disabled = true;
             } else {
-                submitBtn.disabled = false;
+                // 🐛 แก้บั๊ก: เดิมตั้ง submitBtn.disabled = false ตรงๆ ตรงนี้ ซึ่งไป "ปลดล็อก" ปุ่มจอง
+                // ทับสถานะล็อกที่ checkSelectedDateWarning() ตั้งไว้ (เมื่อวันนั้นห้องสมุดปิดทั้งวัน)
+                // เพราะทั้งสองฟังก์ชันแก้ submitBtn.disabled คนละจุดโดยไม่รู้สถานะของกันและกัน
+                // ผลคือถ้าเลือกวันที่ปิดทั้งวันไว้ก่อน แล้วมาเปลี่ยนเวลาเริ่ม/สิ้นสุดทีหลัง ปุ่มจองจะกลับมากดได้
+                // แก้โดยเช็คสถานะ "วันนี้ปิดทั้งวันไหม" ร่วมด้วยเสมอ แทนที่จะปลดล็อกอย่างไม่มีเงื่อนไข
+                const dateStr = fpBookingInstance ? fpBookingInstance.input.value : "";
+                submitBtn.disabled = isDateFullyClosed(dateStr);
             }
         }
+    }
+
+    // ✅ เพิ่มใหม่: ตรวจสอบข้อมูลในฟอร์มแบบรวมทุกช่อง ก่อนอนุญาตให้ submit
+    // (เดิมพึ่งพา required attribute ของ HTML5 อย่างเดียว ซึ่งเช็คได้แต่ไม่ครอบคลุม
+    // ช่องที่โชว์/ซ่อนแบบ dynamic เช่น departmentInput/departmentSelect)
+    function validateBookingForm() {
+        const errors = [];
+
+        if (!document.getElementById("building").value) errors.push("กรุณาเลือกอาคาร");
+        if (!document.getElementById("room").value) errors.push("กรุณาเลือกห้องประชุม");
+        if (!(fpBookingInstance && fpBookingInstance.input.value)) errors.push("กรุณาเลือกวันที่");
+        if (!document.getElementById("startTime").value) errors.push("กรุณาเลือกเวลาเริ่มต้น");
+        if (!document.getElementById("endTime").value) errors.push("กรุณาเลือกเวลาสิ้นสุด");
+        if (!document.getElementById("requester").value.trim()) errors.push("กรุณากรอกชื่อผู้จอง");
+        // หมายเหตุ: ช่อง "purpose" ในฟอร์ม HTML ไม่มี attribute required (จงใจให้กรอกหรือไม่ก็ได้)
+        // จึงไม่บังคับตรงนี้ด้วย เพื่อไม่ให้ validateBookingForm() เปลี่ยนพฤติกรรมฟอร์มไปจากที่ออกแบบไว้เดิม
+
+        const statusValue = document.getElementById("userStatus").value;
+        if (!statusValue) {
+            errors.push("กรุณาเลือกสถานะผู้ใช้งาน");
+        } else if (statusValue === "บุคลากร") {
+            if (!document.getElementById("departmentInput").value.trim()) errors.push("กรุณากรอกแผนก/ฝ่ายงานที่สังกัด");
+        } else if (statusValue === "นักศึกษา" || statusValue === "อาจารย์") {
+            if (!document.getElementById("departmentSelect").value) errors.push("กรุณาเลือกคณะ/สำนักวิชาที่สังกัด");
+        }
+
+        if (errors.length > 0) {
+            BrandSwal.fire({
+                title: 'ข้อมูลไม่ครบถ้วน',
+                html: '<ul class="text-left list-none space-y-1">' + errors.map(e => `<li>• ${escapeHtml(e)}</li>`).join('') + '</ul>',
+                icon: 'warning',
+                confirmButtonColor: '#1e3c72'
+            });
+            return false;
+        }
+        return true;
     }
 
     // ป้องกัน XSS: แปลงตัวอักษรพิเศษของ HTML ให้เป็นข้อความธรรมดา
@@ -934,9 +976,12 @@
             const safeRequesterHtml = escapeHtml(b.requester);
             const safeStatusHtml = escapeHtml(b.userStatus || '-');
 
-            // escape ไว้สำหรับใส่ใน onclick="..." (กัน quote หลุดออกจาก string)
-            const jsRequester = String(b.requester).replace(/'/g, "\\'");
-            const jsRoom = String(b.room).replace(/'/g, "\\'");
+            // ✅ แก้ XSS: เลิกใช้ onclick="..." แบบฝังค่า dynamic ลงใน HTML attribute โดยตรง
+            // (เดิม escape แค่ single quote แต่ไม่ escape double quote จึงยังหลุดออกจาก
+            // attribute ได้ถ้าชื่อผู้จองมีอักขระ " อยู่) เปลี่ยนมาเก็บค่าไว้ใน data-* attribute
+            // (ผ่าน escapeHtml เต็มรูปแบบเหมือนส่วนแสดงผลอื่น) แล้วอ่านค่าผ่าน Event Delegation แทน
+            const safeDateAttr = escapeHtml(b.date);
+            const safeStartTimeAttr = escapeHtml(b.startTime);
 
             tbody.innerHTML += `
                 <tr class="hover:bg-slate-50/80 transition duration-150">
@@ -959,9 +1004,9 @@
                                     </span>
                                 </div>
                             </div>
-                            <button class="w-8 h-8 rounded-full text-slate-400 hover:text-rose-600 hover:bg-rose-50 flex items-center justify-center transition flex-shrink-0" 
-                                onclick="deleteBooking('${jsRequester}', '${b.date}', '${b.startTime}', '${jsRoom}')" 
-                                title="ยกเลิกการจองนี้ (เฉพาะแอดมิน)">
+                            <button class="delete-btn w-8 h-8 rounded-full text-slate-400 hover:text-rose-600 hover:bg-rose-50 flex items-center justify-center transition flex-shrink-0" 
+                                data-requester="${safeRequesterHtml}" data-date="${safeDateAttr}" data-start-time="${safeStartTimeAttr}" data-room="${safeRoomHtml}"
+                                title="ยกเลิกการจองนี้ (เฉพาะแอดมิน)" aria-label="ยกเลิกการจองนี้ (เฉพาะแอดมิน)">
                                 <i class="fa-solid fa-trash-can text-xs"></i>
                             </button>
                         </div>
@@ -971,19 +1016,50 @@
         });
     }
 
+    // ✅ Event Delegation สำหรับปุ่มลบ: ผูก listener แค่ครั้งเดียวที่ตัว tbody (แทนการฝัง onclick
+    // ในทุกแถวที่ render) ค่าที่อ่านมาจาก dataset จะถูก HTML-decode อัตโนมัติโดย browser
+    // ปลอดภัยกว่าการต่อ string เข้า onclick="..." attribute โดยตรง
+    document.getElementById("bookingTableBody").addEventListener("click", function (e) {
+        const btn = e.target.closest(".delete-btn");
+        if (!btn) return;
+        deleteBooking(btn.dataset.requester, btn.dataset.date, btn.dataset.startTime, btn.dataset.room);
+    });
+
     // ใช้ตอน filter เปลี่ยน / หลังจองสำเร็จ / หลังลบ — ยิง fetch แค่ข้อมูลจองอย่างเดียว (เบา เร็ว)
     // ไม่ต้องดึง maintenance/hours ซ้ำทุกครั้ง เพราะข้อมูลพวกนั้นไม่ได้เปลี่ยนบ่อยขนาดนั้น
     function loadBookings() {
         const tbody = document.getElementById("bookingTableBody");
         tbody.innerHTML = `<tr><td colspan="3" class="text-center text-slate-400 py-8"><i class="fa-solid fa-spinner fa-spin me-2 text-blue-500"></i>กำลังโหลดข้อมูล...</td></tr>`;
         fetch(SCRIPT_URL)
-        .then(res => res.json())
+        .then(res => {
+            if (!res.ok) {
+                const err = new Error(`Request failed with status ${res.status}`);
+                err.status = res.status;
+                throw err;
+            }
+            return res.json();
+        })
         .then(data => {
             allBookings = data; 
             renderBookingTable();
         }).catch(err => {
-            console.error(err);
-            tbody.innerHTML = "<tr><td colspan='3' class='text-center text-rose-500 py-6 font-medium'><i class='fa-solid fa-triangle-exclamation me-2'></i>โหลดข้อมูลระบบล้มเหลว</td></tr>";
+            console.error('Failed to load bookings:', err);
+
+            // ✅ ให้ข้อความ error สื่อความหมายตามสาเหตุ แทนข้อความรวมเดียวแบบเดิม
+            let message = 'โหลดข้อมูลระบบล้มเหลว กรุณาลองใหม่อีกครั้ง';
+            if (!navigator.onLine || err instanceof TypeError) {
+                message = 'ไม่สามารถเชื่อมต่ออินเทอร์เน็ตได้ กรุณาตรวจสอบการเชื่อมต่อ';
+            } else if (err.status >= 500) {
+                message = 'เซิร์ฟเวอร์ขัดข้อง กรุณาลองใหม่อีกครั้งในภายหลัง';
+            }
+
+            tbody.innerHTML = `
+                <tr>
+                    <td colspan="3" class="text-center text-rose-500 py-6 font-medium">
+                        <i class="fa-solid fa-triangle-exclamation me-2"></i>${escapeHtml(message)}
+                        <button onclick="loadBookings()" class="block mx-auto mt-2 text-xs underline text-slate-500 hover:text-slate-700">ลองอีกครั้ง</button>
+                    </td>
+                </tr>`;
         });
     }
 
@@ -1044,6 +1120,8 @@
     document.getElementById("bookingForm").addEventListener("submit", function(e) {
         e.preventDefault();
 
+        if (!validateBookingForm()) return;
+
         const bookingDateValue = fpBookingInstance ? fpBookingInstance.input.value : "";
         const statusValue = document.getElementById("userStatus").value;
         const buildingValue = document.getElementById("building").value;
@@ -1102,9 +1180,13 @@
         .then(res => res.json())
         .then(result => {
             if (result.status === "error") {
+                // 🐛 แก้บั๊ก/ความเสี่ยง: เดิมใช้ html: result.message ใส่ข้อความจากฝั่ง backend ตรงๆ
+                // โดยไม่ escape ถ้า Apps Script เผลอสะท้อนข้อมูลที่ผู้ใช้กรอกเอง (เช่น ชื่อผู้จอง)
+                // กลับมาในข้อความ error จะกลายเป็นช่องโหว่ XSS อีกจุดหนึ่ง (คล้ายปัญหา XSS ที่แก้ไปแล้ว)
+                // เปลี่ยนเป็น text: แทน เพราะข้อความ error เป็นข้อความธรรมดา ไม่ต้องใช้ HTML formatting
                 BrandSwal.fire({
                     title: 'ไม่สามารถจองได้',
-                    html: result.message,
+                    text: result.message,
                     icon: 'warning',
                     confirmButtonColor: '#1d4ed8'
                 });
@@ -1192,7 +1274,14 @@
         }
 
         return fetch(`${SCRIPT_URL}?type=all`)
-            .then(res => res.json())
+            .then(res => {
+                if (!res.ok) {
+                    const err = new Error(`Request failed with status ${res.status}`);
+                    err.status = res.status;
+                    throw err;
+                }
+                return res.json();
+            })
             .then(data => {
                 allBookings = Array.isArray(data.bookings) ? data.bookings : [];
                 maintenanceSlots = Array.isArray(data.maintenance) ? data.maintenance : [];
@@ -1207,9 +1296,24 @@
                 }
             })
             .catch(err => {
-                console.error(err);
+                console.error('Failed to load initial data:', err);
+
+                // ✅ ให้ข้อความ error สื่อความหมายตามสาเหตุ แทนข้อความรวมเดียวแบบเดิม
+                let message = 'โหลดข้อมูลระบบล้มเหลว กรุณารีเฟรชหน้าเว็บอีกครั้ง';
+                if (!navigator.onLine || err instanceof TypeError) {
+                    message = 'ไม่สามารถเชื่อมต่ออินเทอร์เน็ตได้ กรุณาตรวจสอบการเชื่อมต่อแล้วรีเฟรชหน้าเว็บ';
+                } else if (err.status >= 500) {
+                    message = 'เซิร์ฟเวอร์ขัดข้อง กรุณาลองใหม่อีกครั้งในภายหลัง';
+                }
+
                 if (tbody) {
-                    tbody.innerHTML = "<tr><td colspan='3' class='text-center text-rose-500 py-6 font-medium'><i class='fa-solid fa-triangle-exclamation me-2'></i>โหลดข้อมูลระบบล้มเหลว กรุณารีเฟรชหน้าเว็บอีกครั้ง</td></tr>";
+                    tbody.innerHTML = `
+                        <tr>
+                            <td colspan="3" class="text-center text-rose-500 py-6 font-medium">
+                                <i class="fa-solid fa-triangle-exclamation me-2"></i>${escapeHtml(message)}
+                                <button onclick="fetchAllData()" class="block mx-auto mt-2 text-xs underline text-slate-500 hover:text-slate-700">ลองอีกครั้ง</button>
+                            </td>
+                        </tr>`;
                 }
                 // ยังตั้งเป็น array ว่างไว้ กัน error ต่อเนื่องจากโค้ดจุดอื่นที่คาดว่าตัวแปรพวกนี้เป็น array เสมอ
                 maintenanceSlots = maintenanceSlots || [];
@@ -1241,6 +1345,17 @@
     // - เด้งป็อปอัพเตือนอีกรอบตอนเลือกวันนั้นพอดี (กด "รับทราบ" ปิดได้)
     // - ถ้าวันนั้น "ปิดทั้งวัน" จะล็อกปุ่มจองไว้จนกว่าจะเปลี่ยนวัน (ปิดบางช่วงยังจองได้ตามปกติ
     //   เพราะยังเลือกเวลานอกช่วงปิดได้ ระบบจะกันไม่ให้เลือกช่วงที่ปิดอีกทีตอนกด submit)
+    // ✅ เพิ่มใหม่: ฟังก์ชันกลางเช็คว่า "วันที่ระบุ" ห้องสมุดปิดทั้งวันหรือไม่ (ใช้ maintenanceSlots)
+    // แยกออกมาให้ทั้ง checkSelectedDateWarning() และ validateTimeSlot() เรียกใช้ร่วมกัน
+    // กันไม่ให้สองจุดนี้ไปแก้ submitBtn.disabled แบบไม่รู้สถานะของกันและกันจนขัดแย้งกันเอง
+    function isDateFullyClosed(dateStr) {
+        if (!dateStr) return false;
+        return maintenanceSlots.some(m =>
+            dateStr >= m.startDate && dateStr <= m.endDate &&
+            timeToMinutes(m.start) <= 1 && timeToMinutes(m.end) >= (23 * 60 + 58)
+        );
+    }
+
     function checkSelectedDateWarning(dateStr) {
         const warningEl = document.getElementById('dateClosureWarning');
         const submitBtn = document.getElementById('submitBtn');
@@ -1255,7 +1370,7 @@
             return;
         }
 
-        const isFullDay = closuresOnDate.some(m => timeToMinutes(m.start) <= 1 && timeToMinutes(m.end) >= (23 * 60 + 58));
+        const isFullDay = isDateFullyClosed(dateStr);
 
         if (isFullDay) {
             warningEl.textContent = `⚠️ วันที่เลือกห้องสมุดปิดทำการ: ${closuresOnDate[0].reason || 'ปิดทำการชั่วคราว'} — กรุณาเลือกวันอื่น`;
@@ -1367,7 +1482,12 @@
                     return response.json();
                 })
                 .catch(error => {
+                    // 🐛 แก้บั๊ก: เดิม catch นี้ไม่ได้ return อะไรเลย (undefined) ทำให้ SweetAlert2
+                    // ตีความว่า preConfirm "สำเร็จ" แล้วปิดป็อปอัพทันที ข้อความ showValidationMessage
+                    // ที่เพิ่งตั้งไว้เลยโผล่มาแวบเดียวแล้วหายไปพร้อมหน้าต่างปิด ผู้ใช้ไม่ทันเห็น
+                    // ต้อง return false ชัดเจน เพื่อบอก SweetAlert2 ว่า validation ไม่ผ่าน ให้ค้างหน้าต่างไว้
                     Swal.showValidationMessage(`เกิดข้อผิดพลาด: ${error}`);
+                    return false;
                 });
             },
             allowOutsideClick: () => !Swal.isLoading()
@@ -1636,7 +1756,10 @@
 
     function renderTimeline() {
         const todayStr = new Date().toLocaleDateString('sv-SE');
-        const hours = roomOperatingHours[dashboardBuilding];
+        // 🐛 แก้บั๊ก: เดิมใช้ roomOperatingHours[dashboardBuilding] ตรงๆ (เวลาเปิด-ปิดปกติแบบ hardcode)
+        // ทำให้ถ้ามีประกาศเปลี่ยนแปลงเวลาเปิด-ปิดชั่วคราวของ "วันนี้" (ผ่าน getEffectiveOperatingHours
+        // ที่ใช้อยู่แล้วในฟอร์มจอง) ตาราง Dashboard จะยังโชว์ช่วงเวลาเปิด-ปิดแบบเดิมที่ไม่ตรงกับความจริง
+        const hours = getEffectiveOperatingHours(dashboardBuilding, todayStr);
         let slots = generateHalfHourSlots(hours.start, hours.end);
         if (dashboardPeriod === 'morning') slots = slots.filter(s => parseInt(s.split(':')[0]) < 12);
         if (dashboardPeriod === 'afternoon') slots = slots.filter(s => parseInt(s.split(':')[0]) >= 12);

@@ -468,7 +468,7 @@
                         <textarea class="w-full bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2.5 text-sm focus:outline-none focus:border-[#5388D8]/30 focus:ring-2 focus:ring-blue-500/10 transition" id="purpose" rows="2" placeholder="ระบุหัวข้อประชุม/กิจกรรมสัมมนา"></textarea>
                     </div>
 
-                    <button type="submit" class="w-full bg-gradient-to-r from-[#5388D8]/50 to-[#5388D8]/70 text-white font-medium text-sm rounded-xl py-3 shadow-lg shadow-blue-500/10 hover:shadow-xl hover:shadow-blue-500/20 active:scale-[0.98] transition disabled:bg-slate-300 disabled:shadow-none disabled:scale-100 mt-2" id="submitBtn">
+                    <button type="submit" class="w-full bg-gradient-to-r from-[#1e40af] to-[#2563eb] text-white font-medium text-sm rounded-xl py-3 shadow-lg shadow-blue-600/30 hover:shadow-xl hover:shadow-blue-600/40 hover:from-[#1e3a8a] hover:to-[#1d4ed8] active:scale-[0.98] transition disabled:bg-slate-400 disabled:shadow-none disabled:scale-100 disabled:cursor-not-allowed mt-2" id="submitBtn">
                         <span class="[text-shadow:_0_2px_4px_rgba(0,0,0,0.5)]"><i class="fa-solid fa-paper-plane me-2"></i>ส่งข้อมูลการจอง </span>
                     </button>
                 </form>
@@ -1040,7 +1040,7 @@
             return res.json();
         })
         .then(data => {
-            allBookings = data; 
+            allBookings = Array.isArray(data.bookings) ? data.bookings : (Array.isArray(data) ? data : []);
             renderBookingTable();
         }).catch(err => {
             console.error('Failed to load bookings:', err);
@@ -1117,6 +1117,22 @@
         });
     }
 
+    // ✅ เพิ่มใหม่: รีเฟรชข้อมูลการจองก่อนตรวจสอบการทับซ้อน (ป้องกัน race condition)
+    function refreshBookingsData() {
+        return fetch(SCRIPT_URL)
+            .then(res => {
+                if (!res.ok) throw new Error(`HTTP ${res.status}`);
+                return res.json();
+            })
+            .then(data => {
+                allBookings = Array.isArray(data.bookings) ? data.bookings : (Array.isArray(data) ? data : []);
+            })
+            .catch(err => {
+                console.error('Failed to refresh bookings:', err);
+                // ถ้าดึงข้อมูลไม่ได้ให้ใช้ข้อมูลเก่า เพื่อไม่ให้การตรวจสอบเสีย
+            });
+    }
+
     document.getElementById("bookingForm").addEventListener("submit", function(e) {
         e.preventDefault();
 
@@ -1140,94 +1156,107 @@
             return;
         }
 
-        if (hasTimeConflict(buildingValue, roomValue, bookingDateValue, startTimeValue, endTimeValue)) {
-            BrandSwal.fire({
-                title: 'ช่วงเวลานี้ถูกจองแล้ว',
-                text: 'มีคนจองห้องนี้ในช่วงเวลาที่คุณเลือกไปแล้ว กรุณาเลือกเวลาอื่น',
-                icon: 'warning',
-                confirmButtonColor: '#1e3c72'
-            });
-            return;
-        }
-
-        document.getElementById("submitBtn").disabled = true;
-        document.getElementById("submitBtn").innerHTML = "<i class='fa-solid fa-spinner fa-spin me-2'></i>กำลังบันทึกข้อมูล...";
-
-        let deptValue = "";
-        if (statusValue === "บุคลากร") {
-            deptValue = document.getElementById("departmentInput").value;
-        } else if (statusValue === "นักศึกษา" || statusValue === "อาจารย์") {
-            deptValue = document.getElementById("departmentSelect").value;
-        }
-
-        const payload = {
-            building: buildingValue,
-            room: roomValue,
-            date: bookingDateValue, 
-            startTime: startTimeValue,
-            endTime: endTimeValue,
-            requester: document.getElementById("requester").value,
-            purpose: document.getElementById("purpose").value,
-            userStatus: statusValue,
-            department: deptValue,
-            attendees: document.getElementById("attendees").value
-        };
-        fetch(SCRIPT_URL, {
-            method: "POST",
-            headers: { "Content-Type": "text/plain;charset=utf-8" },
-            body: JSON.stringify(payload)
-        })
-        .then(res => res.json())
-        .then(result => {
-            if (result.status === "error") {
-                // 🐛 แก้บั๊ก/ความเสี่ยง: เดิมใช้ html: result.message ใส่ข้อความจากฝั่ง backend ตรงๆ
-                // โดยไม่ escape ถ้า Apps Script เผลอสะท้อนข้อมูลที่ผู้ใช้กรอกเอง (เช่น ชื่อผู้จอง)
-                // กลับมาในข้อความ error จะกลายเป็นช่องโหว่ XSS อีกจุดหนึ่ง (คล้ายปัญหา XSS ที่แก้ไปแล้ว)
-                // เปลี่ยนเป็น text: แทน เพราะข้อความ error เป็นข้อความธรรมดา ไม่ต้องใช้ HTML formatting
+        // ✅ รีเฟรชข้อมูลการจองก่อนตรวจสอบ (ป้องกัน race condition)
+        refreshBookingsData().then(() => {
+            if (hasTimeConflict(buildingValue, roomValue, bookingDateValue, startTimeValue, endTimeValue)) {
                 BrandSwal.fire({
-                    title: 'ไม่สามารถจองได้',
-                    text: result.message,
+                    title: 'ช่วงเวลานี้ถูกจองแล้ว',
+                    text: 'มีคนจองห้องนี้ในช่วงเวลาที่คุณเลือกไปแล้ว กรุณาเลือกเวลาอื่น',
                     icon: 'warning',
-                    confirmButtonColor: '#1d4ed8'
+                    confirmButtonColor: '#1e3c72'
                 });
-            } else {
-                BrandSwal.fire({
-                    title: 'จองสำเร็จ!',
-                    text: 'โปรดติดต่อเจ้าหน้าที่ห้องสมุด SLC ก่อนเข้าใช้งาน',
-                    icon: 'success',
-                    confirmButtonText: 'ตกลง',
-                    confirmButtonColor: '#1d4ed8'
-                });
-                
-                if (fpFilterInstance) {
-                    fpFilterInstance.setDate(payload.date);
-                }
-
-                document.getElementById("bookingForm").reset();
-                if(fpBookingInstance) fpBookingInstance.clear(); 
-                
-                document.getElementById("room").disabled = true;
-                document.getElementById("startTime").disabled = true;
-                document.getElementById("endTime").disabled = true;
-                
-                document.getElementById("departmentWrapper").style.display = "none";
-                document.getElementById("departmentSelect").style.display = "none";
-                document.getElementById("departmentInput").style.display = "none";
-                loadBookings();
+                return;
             }
-        })
-        .catch(err => {
-            console.error(err);
+
+            document.getElementById("submitBtn").disabled = true;
+            document.getElementById("submitBtn").innerHTML = "<i class='fa-solid fa-spinner fa-spin me-2'></i>กำลังบันทึกข้อมูล...";
+
+            let deptValue = "";
+            if (statusValue === "บุคลากร") {
+                deptValue = document.getElementById("departmentInput").value;
+            } else if (statusValue === "นักศึกษา" || statusValue === "อาจารย์") {
+                deptValue = document.getElementById("departmentSelect").value;
+            }
+
+            const payload = {
+                building: buildingValue,
+                room: roomValue,
+                date: bookingDateValue, 
+                startTime: startTimeValue,
+                endTime: endTimeValue,
+                requester: document.getElementById("requester").value,
+                purpose: document.getElementById("purpose").value,
+                userStatus: statusValue,
+                department: deptValue,
+                attendees: document.getElementById("attendees").value
+            };
+            fetch(SCRIPT_URL, {
+                method: "POST",
+                headers: { "Content-Type": "text/plain;charset=utf-8" },
+                body: JSON.stringify(payload)
+            })
+            .then(res => res.json())
+            .then(result => {
+                if (result.status === "error") {
+                    // 🐛 แก้บั๊ก/ความเสี่ยง: เดิมใช้ html: result.message ใส่ข้อความจากฝั่ง backend ตรงๆ
+                    // โดยไม่ escape ถ้า Apps Script เผลอสะท้อนข้อมูลที่ผู้ใช้กรอกเอง (เช่น ชื่อผู้จอง)
+                    // กลับมาในข้อความ error จะกลายเป็นช่องโหว่ XSS อีกจุดหนึ่ง (คล้ายปัญหา XSS ที่แก้ไปแล้ว)
+                    // เปลี่ยนเป็น text: แทน เพราะข้อความ error เป็นข้อความธรรมดา ไม่ต้องใช้ HTML formatting
+                    BrandSwal.fire({
+                        title: 'ไม่สามารถจองได้',
+                        text: result.message,
+                        icon: 'warning',
+                        confirmButtonColor: '#1d4ed8'
+                    });
+                } else {
+                    BrandSwal.fire({
+                        title: 'จองสำเร็จ!',
+                        text: 'โปรดติดต่อเจ้าหน้าที่ห้องสมุด SLC ก่อนเข้าใช้งาน',
+                        icon: 'success',
+                        confirmButtonText: 'ตกลง',
+                        confirmButtonColor: '#1d4ed8'
+                    });
+                    
+                    if (fpFilterInstance) {
+                        fpFilterInstance.setDate(payload.date);
+                    }
+
+                    document.getElementById("bookingForm").reset();
+                    if(fpBookingInstance) fpBookingInstance.clear(); 
+                    
+                    document.getElementById("room").disabled = true;
+                    document.getElementById("startTime").disabled = true;
+                    document.getElementById("endTime").disabled = true;
+                    
+                    document.getElementById("departmentWrapper").style.display = "none";
+                    document.getElementById("departmentSelect").style.display = "none";
+                    document.getElementById("departmentInput").style.display = "none";
+                    loadBookings();
+                }
+            })
+            .catch(err => {
+                console.error(err);
+                BrandSwal.fire({
+                    title: 'เกิดข้อผิดพลาด!',
+                    text: 'ไม่สามารถติดต่อเซิร์ฟเวอร์ได้ กรุณาลองใหม่อีกครั้ง',
+                    icon: 'error',
+                    confirmButtonText: 'รับทราบ',
+                    confirmButtonColor: '#e11d48'
+                });
+            })
+            .finally(() => {
+                document.getElementById("submitBtn").innerHTML = "<i class='fa-solid fa-paper-plane me-2'></i>ส่งข้อมูลการจอง";
+                document.getElementById("submitBtn").disabled = false;
+            });
+        }).catch(err => {
+            console.error('Failed to refresh bookings before submit:', err);
             BrandSwal.fire({
                 title: 'เกิดข้อผิดพลาด!',
-                text: 'ไม่สามารถติดต่อเซิร์ฟเวอร์ได้ กรุณาลองใหม่อีกครั้ง',
+                text: 'ไม่สามารถตรวจสอบการจองได้ กรุณาลองใหม่อีกครั้ง',
                 icon: 'error',
                 confirmButtonText: 'รับทราบ',
                 confirmButtonColor: '#e11d48'
             });
-        })
-        .finally(() => {
-            document.getElementById("submitBtn").innerHTML = "<i class='fa-solid fa-paper-plane me-2'></i>ส่งข้อมูลการจอง";
             document.getElementById("submitBtn").disabled = false;
         });
     });

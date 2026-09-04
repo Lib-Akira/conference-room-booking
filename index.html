@@ -468,7 +468,7 @@
                         <textarea class="w-full bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2.5 text-sm focus:outline-none focus:border-[#5388D8]/30 focus:ring-2 focus:ring-blue-500/10 transition" id="purpose" rows="2" placeholder="ระบุหัวข้อประชุม/กิจกรรมสัมมนา"></textarea>
                     </div>
 
-                    <button type="submit" class="w-full bg-gradient-to-r from-[#1e40af] to-[#2563eb] text-white font-medium text-sm rounded-xl py-3 shadow-lg shadow-blue-600/30 hover:shadow-xl hover:shadow-blue-600/40 hover:from-[#1e3a8a] hover:to-[#1d4ed8] active:scale-[0.98] transition disabled:bg-slate-400 disabled:shadow-none disabled:scale-100 disabled:cursor-not-allowed mt-2" id="submitBtn">
+                    <button type="submit" class="w-full bg-gradient-to-r from-blue-300 to-blue-400 text-white font-medium text-sm rounded-xl py-3 shadow-lg shadow-blue-200/40 hover:shadow-blue-200/50 hover:from-blue-350 hover:to-blue-450 active:scale-[0.98] transition enabled:from-[#1e40af] enabled:to-[#2563eb] enabled:shadow-blue-600/30 enabled:hover:shadow-xl enabled:hover:shadow-blue-600/40 enabled:hover:from-[#1e3a8a] enabled:hover:to-[#1d4ed8] disabled:cursor-not-allowed mt-2" id="submitBtn">
                         <span class="[text-shadow:_0_2px_4px_rgba(0,0,0,0.5)]"><i class="fa-solid fa-paper-plane me-2"></i>ส่งข้อมูลการจอง </span>
                     </button>
                 </form>
@@ -1348,6 +1348,38 @@
                 maintenanceSlots = maintenanceSlots || [];
                 operatingHoursOverrides = operatingHoursOverrides || [];
             });
+        
+        // ✅ เช็คการกรอกฟอร์มแต่ละครั้ง และอัปเดตสีปุ่ม
+        function checkFormCompletion() {
+            const building = document.getElementById("building").value;
+            const room = document.getElementById("room").value;
+            const bookingDate = document.getElementById("bookingDate").value;
+            const startTime = document.getElementById("startTime").value;
+            const endTime = document.getElementById("endTime").value;
+            const requester = document.getElementById("requester").value.trim();
+            const userStatus = document.getElementById("userStatus").value;
+            const attendees = document.getElementById("attendees").value;
+            
+            const isComplete = building && room && bookingDate && startTime && endTime && requester && userStatus && attendees;
+            const submitBtn = document.getElementById("submitBtn");
+            submitBtn.disabled = !isComplete;
+        }
+        
+        // เพิ่ม event listeners สำหรับทุก required fields
+        const requiredFields = [
+            "building", "room", "bookingDate", "startTime", "endTime", 
+            "requester", "userStatus", "attendees"
+        ];
+        requiredFields.forEach(fieldId => {
+            const field = document.getElementById(fieldId);
+            if (field) {
+                field.addEventListener("change", checkFormCompletion);
+                field.addEventListener("input", checkFormCompletion);
+            }
+        });
+        
+        // เช็คตอนเปิดหน้าเว็บครั้งแรก
+        checkFormCompletion();
     }
 
     // ✅ เพิ่มใหม่: แจ้งเตือนล่วงหน้าตอนเปิดเว็บ ว่าใน 14 วันข้างหน้ามีวัน/ช่วงไหนปิดบ้าง

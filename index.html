@@ -1254,8 +1254,9 @@
             // Use application/json for POST so Apps Script receives parsed JSON body correctly (was text/plain causing Apps Script to reject body)
             fetch(SCRIPT_URL, {
                 method: "POST",
-                headers: { "Content-Type": "application/json;charset=utf-8" },
-                body: JSON.stringify(payload)
+            // ใช้ text/plain เพื่อเลี่ยง preflight CORS (Apps Script อ่าน e.postData.contents ได้)
+            headers: { "Content-Type": "text/plain;charset=utf-8" },
+            body: JSON.stringify(payload)
             })
             .then(res => res.json())
             .then(result => {
@@ -1595,7 +1596,8 @@
                 // Use application/json for POST so Apps Script receives parsed JSON body correctly (was text/plain causing Apps Script to reject body)
                 return fetch(SCRIPT_URL, {
                     method: 'POST',
-                    headers: { "Content-Type": "application/json;charset=utf-8" },
+                    // ใช้ text/plain เพื่อเลี่ยง preflight CORS (Apps Script อ่าน e.postData.contents ได้)
+                    headers: { "Content-Type": "text/plain;charset=utf-8" },
                     body: JSON.stringify({
                         action: 'delete',
                         password: password,
